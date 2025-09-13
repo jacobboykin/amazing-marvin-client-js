@@ -1,6 +1,6 @@
 {
   "name": "@jacobboykin/amazing-marvin-client",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "TypeScript client library for the Amazing Marvin API",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -81,7 +81,6 @@
   "engines": {
     "node": ">=18.0.0"
   },
-  
   "config": {
     "commitizen": {
       "path": "cz-conventional-changelog"
