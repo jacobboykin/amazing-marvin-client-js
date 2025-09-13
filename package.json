@@ -1,6 +1,6 @@
 {
   "name": "@jacobboykin/amazing-marvin-client",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "TypeScript client library for the Amazing Marvin API",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

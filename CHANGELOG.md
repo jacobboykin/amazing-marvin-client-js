@@ -1,3 +1,10 @@
+## [1.1.0](https://github.com/jacobboykin/amazing-marvin-client-js/compare/v1.0.0...v1.1.0) (2025-09-13)
+
+
+### Features
+
+* publish to npm ([#2](https://github.com/jacobboykin/amazing-marvin-client-js/issues/2)) ([bf2abb2](https://github.com/jacobboykin/amazing-marvin-client-js/commit/bf2abb251ac488aedacf0b2ed998642b399e1adf))
+
 ## 1.0.0 (2025-09-13)
 
 
