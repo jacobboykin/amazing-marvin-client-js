@@ -47,7 +47,7 @@ jobs:
         run: just test-coverage
 
       - name: Upload coverage to Codecov
-        if: matrix.node-version == '20.x' && github.repository == 'jacobboykin/amazing-marvin-client-javascript'
+        if: matrix.node-version == '20.x' && github.repository == 'jacobboykin/amazing-marvin-client-js'
         uses: codecov/codecov-action@v4
         with:
           files: ./coverage/lcov.info

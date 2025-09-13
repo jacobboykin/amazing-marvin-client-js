@@ -75,7 +75,7 @@ todo: this needs to be cleaned up and we need to publish to npm
 
 ### Alternative: Install from GitHub
 ```bash
-npm install github:jacobboykin/amazing-marvin-client-javascript
+npm install github:jacobboykin/amazing-marvin-client-js
 ```
 
 ## Quick Start
