@@ -1,0 +1,9 @@
+{
+  "low": true,
+  "moderate": true,
+  "high": false,
+  "critical": false,
+  "allowlist": [],
+  "report-type": "summary",
+  "package-manager": "npm"
+}

@@ -1,0 +1,90 @@
+{
+  "name": "@jacobboykin/amazing-marvin-client",
+  "version": "0.1.0",
+  "description": "TypeScript client library for the Amazing Marvin API",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.js"
+    }
+  },
+  "sideEffects": false,
+  "files": [
+    "dist/**/*.js",
+    "dist/**/*.d.ts",
+    "dist/**/*.map",
+    "!dist/**/*.test.*",
+    "!dist/**/tests/**",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "npm run clean && tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit",
+    "typecheck:tests": "tsc --project tsconfig.test.json --noEmit",
+    "typecheck:all": "npm run typecheck && npm run typecheck:tests",
+    "lint": "eslint src",
+    "lint:fix": "eslint src --fix",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run ci",
+    "dev": "tsc --watch",
+    "ci": "npm run typecheck:all && npm run lint && npm run test:coverage && npm run build",
+    "commit": "cz"
+  },
+  "keywords": [
+    "amazing-marvin",
+    "marvin",
+    "api",
+    "client",
+    "typescript",
+    "productivity",
+    "tasks",
+    "projects",
+    "time-tracking",
+    "habits"
+  ],
+  "author": "Jacob Boykin",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jacobboykin/amazing-marvin-client-javascript.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jacobboykin/amazing-marvin-client-javascript/issues"
+  },
+  "homepage": "https://github.com/jacobboykin/amazing-marvin-client-javascript#readme",
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "@commitlint/cli": "^18.0.0",
+    "@commitlint/config-conventional": "^18.0.0",
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/git": "^10.0.1",
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "@vitest/coverage-v8": "^1.0.0",
+    "bottleneck": "^2.19.5",
+    "commitizen": "^4.3.0",
+    "cz-conventional-changelog": "^3.3.0",
+    "eslint": "^8.50.0",
+    "p-retry": "^6.2.0",
+    "semantic-release": "^22.0.0",
+    "typescript": "^5.0.0",
+    "typescript-eslint": "^8.42.0",
+    "vitest": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  
+  "config": {
+    "commitizen": {
+      "path": "cz-conventional-changelog"
+    }
+  }
+}
