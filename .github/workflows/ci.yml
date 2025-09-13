@@ -142,8 +142,7 @@ jobs:
         with:
           node-version: '20.x'
           cache: 'npm'
-          registry-url: 'https://npm.pkg.github.com'
-          scope: '@jacobboykin'
+          registry-url: 'https://registry.npmjs.org'
 
       - name: Install just
         uses: extractions/setup-just@v2
@@ -154,8 +153,9 @@ jobs:
       - name: Run full CI pipeline
         run: just ci
 
-      - name: Release
+      - name: Release to npm
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npx semantic-release

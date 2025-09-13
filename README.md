@@ -53,29 +53,10 @@ Amazing Marvin provides two types of API access, designed with security and use-
 
 ## Installation
 
-todo: this needs to be cleaned up and we need to publish to npm
+Install from npm (recommended):
 
-### Quick Setup
-
-1. **Configure npm registry:**
-   ```bash
-   echo "@jacobboykin:registry=https://npm.pkg.github.com" >> .npmrc
-   ```
-
-2. **Authenticate with GitHub:**
-   ```bash
-   npm login --scope=@jacobboykin --registry=https://npm.pkg.github.com
-   # Use your GitHub username and a personal access token with read:packages scope
-   ```
-
-3. **Install the package:**
-   ```bash
-   npm install @jacobboykin/amazing-marvin-client
-   ```
-
-### Alternative: Install from GitHub
 ```bash
-npm install github:jacobboykin/amazing-marvin-client-js
+npm install @jacobboykin/amazing-marvin-client
 ```
 
 ## Quick Start
