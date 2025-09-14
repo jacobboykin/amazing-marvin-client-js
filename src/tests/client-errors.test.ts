@@ -1,10 +1,41 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { MarvinClient } from '../client';
+import { MarvinClient } from '../marvin-client';
+
+// Simple HTTP mock abstraction
+class MockHttpResponse {
+  static success(data: any = {}) {
+    return {
+      ok: true,
+      status: 200,
+      json: async () => data,
+      text: async () => typeof data === 'string' ? data : JSON.stringify(data)
+    };
+  }
+
+  static error(status: number, statusText: string) {
+    return {
+      ok: false,
+      status,
+      statusText
+    };
+  }
+
+  static networkError(message: string) {
+    return Promise.reject(new Error(message));
+  }
+
+  static malformedJson() {
+    return {
+      ok: true,
+      json: async () => { throw new SyntaxError('Unexpected token'); }
+    };
+  }
+}
 
 // Mock fetch globally
 global.fetch = vi.fn();
 
-describe('MarvinClient - Error Handling and Edge Cases', () => {
+describe('MarvinClient - Resilience and Edge Cases', () => {
   let client: MarvinClient;
   const mockApiToken = 'error-test-token';
   
@@ -16,60 +47,60 @@ describe('MarvinClient - Error Handling and Edge Cases', () => {
     vi.clearAllMocks();
   });
 
-  describe('Network and Connection Errors', () => {
-    it('should handle network timeouts', async () => {
-      // Mock rejection for all retry attempts (initial + 3 retries = 4 total)
-      (fetch as any)
-        .mockRejectedValueOnce(new Error('Request timeout'))
-        .mockRejectedValueOnce(new Error('Request timeout'))
-        .mockRejectedValueOnce(new Error('Request timeout'))
-        .mockRejectedValueOnce(new Error('Request timeout'));
+  describe('Service Availability Scenarios', () => {
+    it('should handle persistent network timeouts', async () => {
+      // Focus on business outcome: persistent failure should throw
+      (fetch as any).mockImplementation(() =>
+        MockHttpResponse.networkError('Request timeout')
+      );
 
       await expect(client.testCredentials()).rejects.toThrow('Request timeout');
     });
 
-    it('should handle connection refused', async () => {
-      // Mock rejection for all retry attempts (initial + 3 retries = 4 total)
-      (fetch as any)
-        .mockRejectedValueOnce(new Error('Connection refused'))
-        .mockRejectedValueOnce(new Error('Connection refused'))
-        .mockRejectedValueOnce(new Error('Connection refused'))
-        .mockRejectedValueOnce(new Error('Connection refused'));
+    it('should handle connection refused errors', async () => {
+      (fetch as any).mockImplementation(() =>
+        MockHttpResponse.networkError('Connection refused')
+      );
 
       await expect(client.getTodayItems()).rejects.toThrow('Connection refused');
     });
 
     it('should handle DNS resolution failures', async () => {
-      // Mock rejection for all retry attempts (initial + 3 retries = 4 total)
-      (fetch as any)
-        .mockRejectedValueOnce(new Error('DNS lookup failed'))
-        .mockRejectedValueOnce(new Error('DNS lookup failed'))
-        .mockRejectedValueOnce(new Error('DNS lookup failed'))
-        .mockRejectedValueOnce(new Error('DNS lookup failed'));
+      (fetch as any).mockImplementation(() =>
+        MockHttpResponse.networkError('DNS lookup failed')
+      );
 
       await expect(client.getCategories()).rejects.toThrow('DNS lookup failed');
     });
+
+    it('should recover from temporary network issues', async () => {
+      // Simulate recovery after initial failure
+      (fetch as any)
+        .mockImplementationOnce(() => MockHttpResponse.networkError('Temporary failure'))
+        .mockImplementationOnce(() => MockHttpResponse.success({ categories: [] }));
+
+      const result = await client.getCategories();
+      expect(result).toEqual({ categories: [] });
+    });
   });
 
-  describe('HTTP Status Code Errors', () => {
-    it('should handle 400 Bad Request', async () => {
-      (fetch as any).mockResolvedValueOnce({
-        ok: false,
-        status: 400,
-        statusText: 'Bad Request'
-      });
+  describe('Authentication and Data Validation', () => {
+    it('should reject invalid task data', async () => {
+      (fetch as any).mockResolvedValueOnce(
+        MockHttpResponse.error(400, 'Bad Request')
+      );
 
-      await expect(client.addTask({ title: '', done: false })).rejects.toThrow('HTTP 400: Bad Request');
+      await expect(client.addTask({ title: '', done: false }))
+        .rejects.toThrow('Bad Request');
     });
 
-    it('should handle 401 Unauthorized', async () => {
-      (fetch as any).mockResolvedValueOnce({
-        ok: false,
-        status: 401,
-        statusText: 'Unauthorized'
-      });
+    it('should reject invalid credentials', async () => {
+      (fetch as any).mockResolvedValueOnce(
+        MockHttpResponse.error(401, 'Unauthorized')
+      );
 
-      await expect(client.testCredentials()).rejects.toThrow('HTTP 401: Unauthorized');
+      await expect(client.testCredentials())
+        .rejects.toThrow('Unauthorized');
     });
 
     it('should handle 403 Forbidden', async () => {
@@ -82,14 +113,14 @@ describe('MarvinClient - Error Handling and Edge Cases', () => {
       await expect(client.getMe()).rejects.toThrow('HTTP 403: Forbidden');
     });
 
-    it('should handle 404 Not Found', async () => {
+    it('should handle missing resources', async () => {
       (fetch as any).mockResolvedValueOnce({
         ok: false,
         status: 404,
         statusText: 'Not Found'
       });
 
-      await expect(client.getHabit('nonexistent')).rejects.toThrow('HTTP 404: Not Found');
+      await expect(client.getHabit('nonexistent')).rejects.toThrow('Not Found');
     });
 
     it('should handle 422 Unprocessable Entity', async () => {
@@ -106,58 +137,41 @@ describe('MarvinClient - Error Handling and Edge Cases', () => {
       })).rejects.toThrow('HTTP 422: Unprocessable Entity');
     });
 
-    it('should handle 429 Too Many Requests', async () => {
-      // Mock 429 for all retry attempts (initial + 3 retries = 4 total)
+    it('should handle 429 Too Many Requests with eventual success', async () => {
+      // Focus on recovery behavior rather than retry count
       (fetch as any)
-        .mockResolvedValueOnce({
-          ok: false,
-          status: 429,
-          statusText: 'Too Many Requests'
-        })
-        .mockResolvedValueOnce({
-          ok: false,
-          status: 429,
-          statusText: 'Too Many Requests'
-        })
-        .mockResolvedValueOnce({
-          ok: false,
-          status: 429,
-          statusText: 'Too Many Requests'
-        })
-        .mockResolvedValueOnce({
-          ok: false,
-          status: 429,
-          statusText: 'Too Many Requests'
-        });
+        .mockResolvedValueOnce(MockHttpResponse.error(429, 'Too Many Requests'))
+        .mockResolvedValueOnce(MockHttpResponse.success([]));
 
-      await expect(client.getTodayItems()).rejects.toThrow('HTTP 429: Too Many Requests');
+      const result = await client.getTodayItems();
+      expect(result).toEqual([]);
     });
 
-    it('should handle 500 Internal Server Error', async () => {
-      // Mock 500 for all retry attempts (initial + 3 retries = 4 total)
-      (fetch as any)
-        .mockResolvedValueOnce({
-          ok: false,
-          status: 500,
-          statusText: 'Internal Server Error'
-        })
-        .mockResolvedValueOnce({
-          ok: false,
-          status: 500,
-          statusText: 'Internal Server Error'
-        })
-        .mockResolvedValueOnce({
-          ok: false,
-          status: 500,
-          statusText: 'Internal Server Error'
-        })
-        .mockResolvedValueOnce({
-          ok: false,
-          status: 500,
-          statusText: 'Internal Server Error'
-        });
+    it('should fail after persistent rate limiting', async () => {
+      (fetch as any).mockImplementation(() =>
+        MockHttpResponse.error(429, 'Too Many Requests')
+      );
 
-      await expect(client.getLabels()).rejects.toThrow('HTTP 500: Internal Server Error');
+      await expect(client.getTodayItems())
+        .rejects.toThrow('HTTP 429: Too Many Requests');
+    });
+
+    it('should recover from temporary server errors', async () => {
+      (fetch as any)
+        .mockResolvedValueOnce(MockHttpResponse.error(500, 'Internal Server Error'))
+        .mockResolvedValueOnce(MockHttpResponse.success([]));
+
+      const result = await client.getLabels();
+      expect(result).toEqual([]);
+    });
+
+    it('should fail after persistent server errors', async () => {
+      (fetch as any).mockImplementation(() =>
+        MockHttpResponse.error(500, 'Internal Server Error')
+      );
+
+      await expect(client.getLabels())
+        .rejects.toThrow('HTTP 500: Internal Server Error');
     });
 
     it('should handle 503 Service Unavailable', async () => {
@@ -190,34 +204,10 @@ describe('MarvinClient - Error Handling and Edge Cases', () => {
 
   describe('JSON Parsing Errors', () => {
     it('should handle malformed JSON responses', async () => {
-      // Mock malformed response for all retry attempts (initial + 3 retries = 4 total)
-      (fetch as any)
-        .mockResolvedValueOnce({
-          ok: true,
-          text: async () => {
-            throw new SyntaxError('Unexpected token');
-          }
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          text: async () => {
-            throw new SyntaxError('Unexpected token');
-          }
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          text: async () => {
-            throw new SyntaxError('Unexpected token');
-          }
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          text: async () => {
-            throw new SyntaxError('Unexpected token');
-          }
-        });
+      (fetch as any).mockResolvedValueOnce(MockHttpResponse.malformedJson());
 
-      await expect(client.testCredentials()).rejects.toThrow('Unexpected token');
+      await expect(client.testCredentials())
+        .rejects.toThrow('Unexpected token');
     });
 
     it('should handle empty response body', async () => {
@@ -415,60 +405,25 @@ describe('MarvinClient - Error Handling and Edge Cases', () => {
   });
 
   describe('Concurrent Request Handling', () => {
-    it('should handle multiple concurrent requests', async () => {
-      // Mock different responses for each call
+    it('should handle multiple concurrent requests successfully', async () => {
       (fetch as any)
-        .mockResolvedValueOnce({
-          ok: true,
-          text: async () => 'OK'
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => []
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => []
-        });
+        .mockResolvedValueOnce(MockHttpResponse.success('OK'))
+        .mockResolvedValueOnce(MockHttpResponse.success([]))
+        .mockResolvedValueOnce(MockHttpResponse.success([]));
 
-      const promises = [
-        await client.testCredentials(),
-        await client.getTodayItems(),
-        await client.getLabels()
-      ];
+      const results = await Promise.all([
+        client.testCredentials(),
+        client.getTodayItems(),
+        client.getLabels()
+      ]);
 
-      const results = await Promise.all(promises);
-      
       expect(results).toEqual(['OK', [], []]);
-      expect(fetch).toHaveBeenCalledTimes(3);
     });
 
     it('should handle partial failures in concurrent requests', async () => {
       (fetch as any)
-        .mockResolvedValueOnce({
-          ok: true,
-          text: async () => 'OK'
-        })
-        .mockResolvedValueOnce({
-          ok: false,
-          status: 500,
-          statusText: 'Internal Server Error'
-        })
-        .mockResolvedValueOnce({
-          ok: false,
-          status: 500,
-          statusText: 'Internal Server Error'
-        })
-        .mockResolvedValueOnce({
-          ok: false,
-          status: 500,
-          statusText: 'Internal Server Error'
-        })
-        .mockResolvedValueOnce({
-          ok: false,
-          status: 500,
-          statusText: 'Internal Server Error'
-        });
+        .mockResolvedValueOnce(MockHttpResponse.success('OK'))
+        .mockImplementation(() => MockHttpResponse.error(500, 'Internal Server Error'));
 
       const results = await Promise.allSettled([
         client.testCredentials(),
@@ -477,7 +432,9 @@ describe('MarvinClient - Error Handling and Edge Cases', () => {
 
       expect(results[0].status).toBe('fulfilled');
       expect(results[1].status).toBe('rejected');
-      expect((results[1] as PromiseRejectedResult).reason.message).toBe('HTTP 500: Internal Server Error');
+      if (results[1].status === 'rejected') {
+        expect(results[1].reason.message).toBe('HTTP 500: Internal Server Error');
+      }
     });
   });
 

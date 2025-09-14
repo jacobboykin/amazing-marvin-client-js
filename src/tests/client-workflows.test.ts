@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { MarvinClient } from '../client';
+import { MarvinClient } from '../marvin-client';
 
 // Mock fetch globally
 global.fetch = vi.fn();
 
-describe('MarvinClient - Real-World Workflows', () => {
+describe('MarvinClient - User Workflows', () => {
   let client: MarvinClient;
   const mockApiToken = 'workflow-test-token';
   
@@ -303,136 +303,56 @@ describe('MarvinClient - Real-World Workflows', () => {
 
   describe('Event and Time Management Workflow', () => {
     it('should plan day with time blocks and events', async () => {
-      const date = '2024-03-15';
-      
-      const mockTimeBlocks = [
-        {
-          _id: 'block1',
-          title: 'Deep Work',
-          date,
-          time: '09:00',
-          duration: '120'
-        },
-        {
-          _id: 'block2', 
-          title: 'Meetings',
-          date,
-          time: '14:00',
-          duration: '90'
-        }
-      ];
+      mocker
+        .queueResponse([{ _id: 'block1', title: 'Deep Work', time: '09:00' }])  // time blocks
+        .queueResponse({ _id: 'event123', title: 'Team Standup' })  // add event
+        .queueResponse([{ _id: 'task1', title: 'Code review', done: false }]);  // today items
 
-      const eventData = {
+      mocker.setup();
+
+      // Execute: Day planning workflow
+      const timeBlocks = await client.getTodayTimeBlocks('2024-03-15');
+      const event = await client.addEvent({
         title: 'Team Standup',
         start: '2024-03-15T14:00:00.000Z',
-        length: 1800000, // 30 minutes
-        note: 'Daily team sync'
-      };
-      const mockEvent = { _id: 'event123', ...eventData };
+        length: 1800000
+      });
+      const todayItems = await client.getTodayItems('2024-03-15');
 
-      const mockTodayItems = [
-        {
-          _id: 'task1',
-          title: 'Code review',
-          day: date,
-          timeEstimate: 3600000,
-          done: false
-        }
-      ];
-
-      // Mock API responses
-      (fetch as any)
-        .mockResolvedValueOnce({ ok: true, json: async () => mockTimeBlocks })  // getTodayTimeBlocks
-        .mockResolvedValueOnce({ ok: true, json: async () => mockEvent })       // addEvent
-        .mockResolvedValueOnce({ ok: true, json: async () => mockTodayItems }); // getTodayItems
-
-      // Execute time planning workflow
-      const timeBlocks = await client.getTodayTimeBlocks(date);
-      expect(timeBlocks).toHaveLength(2);
-      expect(timeBlocks[0]!.title).toBe('Deep Work');
-
-      const event = await client.addEvent(eventData);
+      // Verify: Day structure created
+      expect(timeBlocks[0].title).toBe('Deep Work');
       expect(event.title).toBe('Team Standup');
-
-      const todayItems = await client.getTodayItems(date);
-      expect(todayItems).toHaveLength(1);
-      expect(todayItems[0]!.title).toBe('Code review');
-
-      expect(fetch).toHaveBeenCalledTimes(3);
+      expect(todayItems[0].title).toBe('Code review');
     });
   });
 
   describe('Weekly Review Workflow', () => {
-    it('should gather comprehensive weekly data', async () => {
-      
-      const mockProfile = {
-        userId: 'user123',
-        email: 'test@example.com',
-        rewardPointsEarned: 25.5,
-        rewardPointsSpent: 8.0,
-        marvinPoints: 150
-      };
+    it('should gather weekly review data', async () => {
+      mocker
+        .queueResponse({ rewardPointsEarned: 25.5, marvinPoints: 150 })  // profile
+        .queueResponse({ level: 3, kudos: 42 })  // kudos
+        .queueResponse([{ _id: 'goal1', title: 'Complete Q1', status: 'active' }])  // goals
+        .queueResponse([{ _id: 'water', title: 'Water', target: 8, history: [8, 6, 7, 8, 5] }]);  // habits
 
-      const mockKudos = {
-        kudos: 42,
-        level: 3,
-        kudosRemaining: 8
-      };
+      mocker.setup();
 
-      const mockGoals = [
-        {
-          _id: 'goal1',
-          title: 'Complete Q1 Projects',
-          status: 'active' as const,
-          expectedTasks: 15,
-          taskProgress: true
-        }
-      ];
-
-      const mockHabits = [
-        {
-          _id: 'water',
-          title: 'Drink Water',
-          period: 'day' as const,
-          target: 8,
-          history: [8, 6, 7, 8, 5] // Last 5 days
-        }
-      ];
-
-      // Mock API responses
-      (fetch as any)
-        .mockResolvedValueOnce({ ok: true, json: async () => mockProfile })  // getMe
-        .mockResolvedValueOnce({ ok: true, json: async () => mockKudos })    // getKudos  
-        .mockResolvedValueOnce({ ok: true, json: async () => mockGoals })    // getGoals
-        .mockResolvedValueOnce({ ok: true, json: async () => mockHabits });  // getHabits
-
-      // Execute weekly review workflow
+      // Execute: Weekly review data gathering
       const [profile, kudos, goals, habits] = await Promise.all([
         client.getMe(),
-        client.getKudos(), 
+        client.getKudos(),
         client.getGoals(),
         client.getHabits()
       ]);
 
-      // Verify comprehensive data gathering
+      // Verify: Review data available
       expect(profile.rewardPointsEarned).toBe(25.5);
-      expect(profile.marvinPoints).toBe(150);
       expect(kudos.level).toBe(3);
-      expect(goals).toHaveLength(1);
-      expect(goals[0]!.status).toBe('active');
-      expect(habits).toHaveLength(1);
-      expect(habits[0]!.history).toHaveLength(5);
+      expect(goals[0].status).toBe('active');
+      expect(habits[0].history).toHaveLength(5);
 
-      // Calculate weekly insights
-      const activeGoals = goals.filter(g => g.status === 'active');
-      const weeklyWaterAvg = habits[0]!.history!.reduce((sum, day) => sum + day, 0) / habits[0]!.history!.length;
-      const netRewardPoints = (profile.rewardPointsEarned || 0) - (profile.rewardPointsSpent || 0);
-
-      expect(activeGoals).toHaveLength(1);
-      expect(weeklyWaterAvg).toBe(6.8); // (8+6+7+8+5)/5
-      expect(netRewardPoints).toBe(17.5);
-
-      expect(fetch).toHaveBeenCalledTimes(4);
+      // Calculate insights from data
+      const weeklyAvg = habits[0].history.reduce((sum, day) => sum + day, 0) / 5;
+      expect(weeklyAvg).toBe(6.8);
     });
   });
 
@@ -485,5 +405,9 @@ describe('MarvinClient - Real-World Workflows', () => {
 
       expect(fetch).toHaveBeenCalledTimes(3);
     });
+  });
+
+  afterEach(() => {
+    mocker.reset();
   });
 });

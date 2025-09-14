@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { MarvinClient } from '../client';
+import { MarvinClient } from '../marvin-client';
 
 // Mock fetch globally
 global.fetch = vi.fn();
 
-describe('MarvinClient - Integration Tests', () => {
+describe('MarvinClient - Core Functionality', () => {
   let client: MarvinClient;
   const mockApiToken = 'integration-test-token';
   
