@@ -231,60 +231,20 @@ export class MarvinClient {
     for (let attempt = 0; attempt <= this.retries; attempt++) {
       try {
         return await this.makeRequestCore<T>(endpoint, options, additionalHeaders, parser);
-      } catch (error) {
-        if (error instanceof MarvinError) {
-          lastError = error;
+      } catch (caught) {
+        const err = this.toMarvinError(caught, endpoint, options.method || 'GET');
+        lastError = err;
 
-          if (error.isClientError() && error.status !== 429) {
-            throw error;
-          }
-
-          if (attempt === this.retries) {
-            throw error;
-          }
-
-          if (error.isRetryable() || error.status === 429) {
-            // Prefer precise server-provided Retry-After when present
-            const serverDelay = typeof error.retryAfterMs === 'number' ? error.retryAfterMs : null;
-            const backoffDelay = serverDelay ?? (this.retryDelay * Math.pow(2, attempt));
-            await this.delay(backoffDelay);
-            continue;
-          }
-
-          throw error;
+        if (this.isNonRetryableClientError(err) || attempt === this.retries || !this.shouldRetry(err)) {
+          throw err;
         }
 
-        if (error instanceof Error) {
-          lastError = new MarvinError({
-            message: error.message,
-            status: 0,
-            statusText: 'Network Error',
-            endpoint,
-            method: options.method || 'GET',
-            timestamp: Date.now(),
-          });
-        } else {
-          lastError = new MarvinError({
-            message: 'Unknown error',
-            status: 0,
-            statusText: 'Unknown Error',
-            endpoint,
-            method: options.method || 'GET',
-            timestamp: Date.now(),
-          });
-        }
-
-        if (attempt < this.retries) {
-          const backoffDelay = this.retryDelay * Math.pow(2, attempt);
-          await this.delay(backoffDelay);
-          continue;
-        }
-
-        throw lastError;
+        await this.waitBeforeRetry(attempt, err);
       }
     }
 
-    throw lastError || new MarvinError({
+    // Should be unreachable; keep a safe fallback
+    throw lastError ?? new MarvinError({
       message: 'Request failed after all retries',
       status: 0,
       statusText: 'Retry Exhausted',
@@ -292,6 +252,42 @@ export class MarvinClient {
       method: options.method || 'GET',
       timestamp: Date.now(),
     });
+  }
+
+  private toMarvinError(error: unknown, endpoint: string, method: string): MarvinError {
+    if (error instanceof MarvinError) return error;
+    if (error instanceof Error) {
+      return new MarvinError({
+        message: error.message,
+        status: 0,
+        statusText: 'Network Error',
+        endpoint,
+        method,
+        timestamp: Date.now(),
+      });
+    }
+    return new MarvinError({
+      message: 'Unknown error',
+      status: 0,
+      statusText: 'Unknown Error',
+      endpoint,
+      method,
+      timestamp: Date.now(),
+    });
+  }
+
+  private isNonRetryableClientError(err: MarvinError): boolean {
+    return err.isClientError() && err.status !== 429;
+  }
+
+  private shouldRetry(err: MarvinError): boolean {
+    return err.isRetryable() || err.status === 429;
+  }
+
+  private async waitBeforeRetry(attempt: number, err: MarvinError): Promise<void> {
+    const serverDelay = typeof err.retryAfterMs === 'number' ? err.retryAfterMs : null;
+    const backoffDelay = serverDelay ?? this.retryDelay * Math.pow(2, attempt);
+    await this.delay(backoffDelay);
   }
 
   /**
